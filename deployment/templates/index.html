@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Water Segmentation Model</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+
+      .container {
+        background-color: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .upload-section {
+        border: 2px dashed #3498db;
+        border-radius: 10px;
+        padding: 40px;
+        text-align: center;
+        margin-bottom: 30px;
+        background-color: #f8f9fa;
+      }
+
+      .upload-section.dragover {
+        border-color: #e74c3c;
+        background-color: #fdf2f2;
+      }
+
+      .file-input {
+        margin: 20px 0;
+      }
+
+      .file-input input[type="file"] {
+        display: none;
+      }
+
+      .file-input label {
+        display: inline-block;
+        padding: 12px 30px;
+        background-color: #3498db;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      .file-input label:hover {
+        background-color: #2980b9;
+      }
+
+      .predict-btn {
+        background-color: #27ae60;
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 20px;
+        transition: background-color 0.3s;
+      }
+
+      .predict-btn:hover {
+        background-color: #229954;
+      }
+
+      .predict-btn:disabled {
+        background-color: #95a5a6;
+        cursor: not-allowed;
+      }
+
+      .status {
+        margin: 20px 0;
+        padding: 10px;
+        border-radius: 5px;
+        text-align: center;
+      }
+
+      .status.success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .status.error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .status.info {
+        background-color: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      .results {
+        margin-top: 30px;
+        display: none;
+      }
+
+      .result-image {
+        max-width: 100%;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+      }
+
+      .stat-card {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        border-left: 4px solid #3498db;
+      }
+
+      .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #2c3e50;
+      }
+
+      .stat-label {
+        color: #7f8c8d;
+        margin-top: 5px;
+      }
+
+      .loading {
+        display: none;
+        text-align: center;
+        margin: 20px 0;
+      }
+
+      .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .model-status {
+        background-color: #e8f4fd;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        border-left: 4px solid #3498db;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🌊 Water Segmentation Model</h1>
+
+      <div class="model-status">
+        <strong>Model Status:</strong> <span id="modelStatus">Checking...</span
+        ><br />
+        <strong>Device:</strong> <span id="deviceInfo">-</span><br />
+        <strong>Selected Bands:</strong> <span id="bandsInfo">-</span>
+      </div>
+
+      <div class="upload-section" id="uploadSection">
+        <h3>Upload TIF Image for Water Segmentation</h3>
+        <p>Select a multi-band TIF/TIFF image (must have at least 12 bands)</p>
+
+        <div class="file-input">
+          <label for="fileInput">Choose TIF File</label>
+          <input type="file" id="fileInput" accept=".tif,.tiff" />
+        </div>
+
+        <p id="fileName"></p>
+
+        <button
+          class="predict-btn"
+          id="predictBtn"
+          onclick="predictImage()"
+          disabled>
+          Predict Water Segmentation
+        </button>
+      </div>
+
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Processing image and making prediction...</p>
+      </div>
+
+      <div id="status"></div>
+
+      <div class="results" id="results">
+        <h3>Prediction Results</h3>
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-value" id="waterPercentage">-</div>
+            <div class="stat-label">Water Coverage (%)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="waterPixels">-</div>
+            <div class="stat-label">Water Pixels</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="totalPixels">-</div>
+            <div class="stat-label">Total Pixels</div>
+          </div>
+        </div>
+        <img id="resultImage" class="result-image" alt="Prediction Result" />
+      </div>
+    </div>
+
+    <script>
+      let selectedFile = null;
+
+      // Check model status on page load
+      window.onload = function () {
+        checkModelStatus();
+      };
+
+      function checkModelStatus() {
+        fetch("/model_status")
+          .then((response) => response.json())
+          .then((data) => {
+            const statusElement = document.getElementById("modelStatus");
+            const deviceElement = document.getElementById("deviceInfo");
+            const bandsElement = document.getElementById("bandsInfo");
+
+            if (data.model_loaded) {
+              statusElement.textContent = "✅ Model Loaded";
+              statusElement.style.color = "#27ae60";
+            } else {
+              statusElement.textContent = "❌ Model Not Loaded";
+              statusElement.style.color = "#e74c3c";
+            }
+
+            deviceElement.textContent = data.device || "Unknown";
+            bandsElement.textContent = data.selected_bands
+              ? data.selected_bands.join(", ")
+              : "Not available";
+          })
+          .catch((error) => {
+            console.error("Error checking model status:", error);
+            document.getElementById("modelStatus").textContent =
+              "❌ Error checking status";
+          });
+      }
+
+      // File input handling
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", function (e) {
+          const file = e.target.files[0];
+          if (file) {
+            selectedFile = file;
+            document.getElementById(
+              "fileName"
+            ).textContent = `Selected: ${file.name}`;
+            document.getElementById("predictBtn").disabled = false;
+          }
+        });
+
+      // Drag and drop functionality
+      const uploadSection = document.getElementById("uploadSection");
+
+      uploadSection.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        uploadSection.classList.add("dragover");
+      });
+
+      uploadSection.addEventListener("dragleave", function (e) {
+        uploadSection.classList.remove("dragover");
+      });
+
+      uploadSection.addEventListener("drop", function (e) {
+        e.preventDefault();
+        uploadSection.classList.remove("dragover");
+
+        const files = e.dataTransfer.files;
+        if (
+          files.length > 0 &&
+          (files[0].name.endsWith(".tif") || files[0].name.endsWith(".tiff"))
+        ) {
+          selectedFile = files[0];
+          document.getElementById(
+            "fileName"
+          ).textContent = `Selected: ${selectedFile.name}`;
+          document.getElementById("predictBtn").disabled = false;
+          document.getElementById("fileInput").files = files;
+        }
+      });
+
+      function showStatus(message, type) {
+        const statusDiv = document.getElementById("status");
+        statusDiv.className = `status ${type}`;
+        statusDiv.textContent = message;
+        statusDiv.style.display = "block";
+      }
+
+      function hideStatus() {
+        document.getElementById("status").style.display = "none";
+      }
+
+      function predictImage() {
+        if (!selectedFile) {
+          showStatus("Please select a file first.", "error");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        // Show loading
+        document.getElementById("loading").style.display = "block";
+        document.getElementById("results").style.display = "none";
+        document.getElementById("predictBtn").disabled = true;
+        hideStatus();
+
+        fetch("/predict", {
+          method: "POST",
+          body: formData,
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("predictBtn").disabled = false;
+
+            if (data.success) {
+              // Show results
+              document.getElementById("waterPercentage").textContent =
+                data.water_percentage + "%";
+              document.getElementById("waterPixels").textContent =
+                data.water_pixels.toLocaleString();
+              document.getElementById("totalPixels").textContent =
+                data.total_pixels.toLocaleString();
+              document.getElementById("resultImage").src =
+                "data:image/png;base64," + data.result_image;
+              document.getElementById("results").style.display = "block";
+
+              showStatus(
+                `Prediction completed! Water coverage: ${data.water_percentage}%`,
+                "success"
+              );
+            } else {
+              showStatus(data.error || "Prediction failed", "error");
+            }
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("predictBtn").disabled = false;
+            showStatus("An error occurred during prediction.", "error");
+          });
+      }
+    </script>
+  </body>
+</html>
